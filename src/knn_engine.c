@@ -48,7 +48,7 @@ void build_heap(Node* root, size_t n)
 
 //Różne metryki do obliczania sąsiadów 
 
-Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound)
+Node* euclidean_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound)
 {
     double* distances = calloc(numRows,sizeof(double));
     if(distances==NULL) return NULL;
@@ -212,4 +212,101 @@ Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,
     free(distances);
     free(validCols);
     return heap;
+}
+
+
+SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads)
+{
+    if(!(Rf_isReal(rMatrix)) || !Rf_isMatrix(rMatrix)) Rf_error("Matrix is not numeric");
+    if(!(Rf_isInteger(rK))) Rf_error("K is not numeric");
+    if(Rf_asInteger(rK)<=0) Rf_error("K must be positive");
+    if(!(Rf_isInteger(rThreads))) Rf_error("rThreads is not numeric");
+    if(Rf_asInteger(rThreads)<=0) Rf_error("rThreads must be positive");
+
+    if(XLENGTH(rK)!=1) Rf_error("k must be scalar");
+
+    if(XLENGTH(rMatrix)==0) Rf_error("There is nothing to impute");
+
+
+    SEXP outputMatrix = Rf_duplicate(rMatrix);
+    PROTECT(outputMatrix);
+    double* matrixOut= REAL(outputMatrix);
+    double* matrixIn=REAL(rMatrix);
+    int numRows= Rf_nrows(outputMatrix);
+    int numCols= Rf_ncols(outputMatrix);
+
+    int k= Rf_asInteger(rK);
+    int metricFlag= Rf_asInteger(rMetricFlag);
+    int numThreads= Rf_asInteger(rThreads);
+
+    // tworzymy mape wierszy w których występują braki do uzupełnienia
+    int* rowsToFIx = calloc(numRows,sizeof(int));
+    if(rowsToFIx==NULL)
+    {
+        UNPROTECT(1);
+        Rf_error("Allocation error");
+    }
+
+    for(int j=0; j<numCols;j++)
+    {
+        for(int i=0;i<numRows;i++)
+        {
+            if(ISNA(matrixIn[i+j*numRows])) rowsToFIx[i]=1;
+        }
+    }
+
+    // Znajdujemy k sąsiadów dla wierszy które wymagają uzupełnienia 
+    #pragma omp parallel for num_threads(numThreads)
+    for(int target=0; target<numRows;target++)
+    {
+        if(rowsToFIx[target]==0) continue;
+
+        Node* neighbors= NULL;
+        int neighborsFound=0;
+        switch (metricFlag)
+        {
+        case 1:
+            neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+            break;
+        
+        case 2:
+            neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+            break;
+        default:
+        
+            break;
+        }
+        if(neighbors==NULL || neighborsFound==0) continue;
+
+        for(int j=0;j<numCols;j++)
+        {
+            int targetIndex= target+j*numRows;
+
+            if(!ISNA(matrixIn[targetIndex])) continue;
+
+            double sum=0.0;
+            int validNeighbors=0;
+
+            for(int n=0;n<neighborsFound;n++) 
+            {
+                double neighborVal= matrixIn[neighbors[n].row_index+j*numRows];
+
+                if(!ISNA(neighborVal))
+                {
+                    sum+=neighborVal;
+                    validNeighbors++;
+                }
+            }
+            if(validNeighbors>0)
+            {
+                matrixOut[targetIndex]= sum/validNeighbors;
+            }
+        }
+        free(neighbors);
+
+    }
+    free(rowsToFIx);
+    UNPROTECT(1);
+    return outputMatrix;
+    
 }
