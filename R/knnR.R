@@ -1,12 +1,13 @@
 
 
-kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan"),
+kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan","gower"),
                        threads=NULL,maxColNa=0.8,maxRowNa=0.5)
 {
   chosenMetric <- match.arg(metric)
   metricFlag <- switch (chosenMetric,
                         "euclidean" = 1L,
-                        "manhattan" = 2L
+                        "manhattan" = 2L,
+                        "gower"=3L
   )
   
   if(!is.data.frame(data) && !is.matrix(data))
@@ -25,7 +26,7 @@ kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan"),
   }
   if(maxColNa <=0 || maxColNa >=1 || maxRowNa <=0 || maxRowNa >=1 )
   {
-    stop("skibidi")
+    stop("Invalid maxColNa or maxRowNa, both must be <0,1>")
   }
   
   dfOutput <- as.data.frame(data)
@@ -144,11 +145,55 @@ kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan"),
     }
     
   }
-  
+  if(metricFlag==3L)
+  {
+    colRange <- sapply(dfOutput,function(x){
+      if(is.numeric(x)){
+        range<- max(x,na.rm = TRUE)-min(x,na.rm=TRUE)
+        if(range==0 || is.na(range)) {1.0} else {range}
+      }
+      else{1.0}
+    })
+    colType <- sapply(dfOutput, function(x){as.integer(!is.numeric(x))})
+    catColNames <- names(dfOutput[as.logical(colType)])
+    NumericColNames <- names(dfOutput[!as.logical(colType)])
+    
+    
+    levelsList <- list()
+    for(col in catColNames)
+    {
+      dfOutput[[col]] <- as.factor(dfOutput[[col]])
+      levelsList[[col]] <- levels(dfOutput[[col]])
+      dfOutput[[col]]<- as.numeric(dfOutput[[col]])
+    }
+    imputedMatrixC <- .Call("knn_imputeC",as.matrix(dfOutput),
+                            as.integer(k),as.integer(metricFlag),as.integer(threads),colType,colRange)
+    
+    dfFinal <- dfOutput
+    
+    for(col in catColNames)
+    {
+      
+      imputedIdx <- round(imputedMatrixC[,col])
+      imputedIdx <- pmax(1,pmin(imputedIdx,length(levelsList[[col]])))
+      dfFinal[[col]] <- factor(levelsList[[col]][imputedIdx], levels = levelsList[[col]])
+    }
+    for(col in NumericColNames)
+    {
+      naIdx <- is.na(dfFinal[[col]])
+      
+      if(any(naIdx))
+      {
+        dfFinal[[col]][naIdx] <- imputedMatrixC[naIdx,col]
+      }
+    }
+  }
   
   return(dfFinal)
-  
-  
-  
-  
 }
+  
+  
+  
+  
+  
+  

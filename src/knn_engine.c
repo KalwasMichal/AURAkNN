@@ -48,7 +48,7 @@ void build_heap(Node* root, size_t n)
 
 //Różne metryki do obliczania sąsiadów 
 
-Node* euclidean_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound)
+Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound)
 {
     double* distances = calloc(numRows,sizeof(double));
     if(distances==NULL) return NULL;
@@ -61,12 +61,23 @@ Node* euclidean_distance(double* matrix,int targetRow, int numRows, int numCols,
 
     for(int i=0;i<numCols;i++)
     {
-        double targetVal=matrix[targetRow+i*numRows];
+        size_t offset= (size_t)i * numRows;
+        double targetVal=matrix[targetRow+offset];
         if(ISNA(targetVal)) continue;
         
-        for(int j=0;j<numRows;j++)
+        for(int j=0;j<targetRow;j++)
         {
-            double curr= matrix[j+i*numRows];
+           double curr= matrix[j+offset];
+            if(!ISNA(curr))
+            {
+                double diff= targetVal-curr;
+                distances[j]+=diff*diff;
+                validCols[j]++;
+            } 
+        }
+        for(int j=targetRow+1;j<numRows;j++)
+        {
+            double curr= matrix[j+offset];
             if(!ISNA(curr))
             {
                 double diff= targetVal-curr;
@@ -142,14 +153,26 @@ Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,
         return NULL;
     }
 
+    
     for(int i=0;i<numCols;i++)
     {
-        double targetVal=matrix[targetRow+i*numRows];
+        size_t offset= (size_t)i * numRows;
+        double targetVal=matrix[targetRow+offset];
         if(ISNA(targetVal)) continue;
         
-        for(int j=0;j<numRows;j++)
+        for(int j=0;j<targetRow;j++)
         {
-            double curr= matrix[j+i*numRows];
+           double curr= matrix[j+offset];
+            if(!ISNA(curr))
+            {
+                double diff= targetVal-curr;
+                distances[j]+=fabs(diff);
+                validCols[j]++;
+            } 
+        }
+        for(int j=targetRow+1;j<numRows;j++)
+        {
+            double curr= matrix[j+offset];
             if(!ISNA(curr))
             {
                 double diff= targetVal-curr;
@@ -214,6 +237,117 @@ Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,
     return heap;
 }
 
+
+Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound,int* colType, double* colRange)
+{
+    double* distances = calloc(numRows,sizeof(double));
+    if(distances==NULL) return NULL;
+    int* validCols= calloc(numRows,sizeof(int));
+    if(validCols==NULL)
+    {
+        free(distances);
+        return NULL;
+    }
+    for(int i=0;i<numCols;i++)
+    {
+        size_t offset=(size_t)i*numRows;
+        double targetVal=matrix[targetRow+offset];
+        if(ISNA(targetVal)) continue;
+
+        if(colType[i])
+        {
+            
+            for(int j=0;j<targetRow;j++)
+            {
+                double curr= matrix[j+offset];
+                if(ISNA(curr)) continue;
+                distances[j]+=(targetVal==curr)? 0.0:1.0;
+                validCols[j]++;
+            }
+            for(int j=targetRow+1;j<numRows;j++)
+            {
+                double curr= matrix[j+offset];
+                if(ISNA(curr)) continue;
+                distances[j]+=(targetVal==curr)? 0.0:1.0;
+                validCols[j]++;
+            }
+        }
+        else
+        {
+            double range=colRange[i];
+            for(int j=0;j<targetRow;j++)
+            {
+                double curr= matrix[j+offset];
+                if(ISNA(curr)) continue;
+                distances[j]+=fabs(targetVal-curr)/range;
+                validCols[j]++;
+            }
+            for(int j=targetRow+1;j<numRows;j++)
+            {
+                double curr= matrix[j+offset];
+                if(ISNA(curr)) continue;
+                distances[j]+=fabs(targetVal-curr)/range;
+                validCols[j]++;
+            }
+        }
+
+    }
+    for(int i=0;i<numRows;i++) // skalujemy dystanse
+    {
+        if(i==targetRow || validCols[i]==0) continue;
+        double scalingFactor = (double) numCols / (double) validCols[i];
+        distances[i]= distances[i]*scalingFactor;
+    }
+    int Newk=MIN(k,numRows-1);
+    Node* heap=malloc(Newk*sizeof(Node));
+    if(heap==NULL)
+    {
+        free(distances);
+        free(validCols);
+        return NULL;
+    }
+    int rowIndex=0;
+    int heapCount=0;
+    while(rowIndex<numRows && heapCount<Newk)
+    {
+        if(rowIndex==targetRow || validCols[rowIndex]==0)
+        {
+            rowIndex++;
+            continue;
+        }
+        heap[heapCount].distance=distances[rowIndex];
+        heap[heapCount].row_index=rowIndex;   
+        heapCount++;
+        rowIndex++;
+    }
+    if(heapCount<Newk) Newk=heapCount;
+    *neigborsFound = Newk;
+    if(Newk == 0)
+    {
+        free(distances);
+        free(validCols);
+        free(heap);
+        return NULL;
+    }
+
+
+    build_heap(heap,Newk);
+
+    for(int i=rowIndex;i<numRows;i++)
+    {
+        if(i==targetRow || validCols[i]==0) continue;
+        if(distances[i]<heap[0].distance)
+        {
+            heap[0].distance=distances[i];
+            heap[0].row_index=i;
+            DownHeap(heap,0,Newk);
+        }
+    }
+    free(distances);
+    free(validCols);
+    return heap;
+
+}
 
 SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads)
 {
