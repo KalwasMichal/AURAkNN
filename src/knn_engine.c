@@ -349,7 +349,7 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
 
 }
 
-SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads)
+SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads,SEXP rColType,SEXP rColRange)
 {
     if(!(Rf_isReal(rMatrix)) || !Rf_isMatrix(rMatrix)) Rf_error("Matrix is not numeric");
     if(!(Rf_isInteger(rK))) Rf_error("K is not numeric");
@@ -373,6 +373,9 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads)
     int metricFlag= Rf_asInteger(rMetricFlag);
     int numThreads= Rf_asInteger(rThreads);
 
+
+    int* colType= (rColType != R_NilValue)? INTEGER(rColType) : NULL;
+    double* colRange= (rColRange != R_NilValue)? REAL(rColRange) : NULL;
     // tworzymy mape wierszy w których występują braki do uzupełnienia
     int* rowsToFIx = calloc(numRows,sizeof(int));
     if(rowsToFIx==NULL)
@@ -406,41 +409,112 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads)
         case 2:
             neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
             break;
+        case 3:
+            neighbors=gower_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,colType,colRange);
+            break;
         default:
         
             break;
         }
         if(neighbors==NULL || neighborsFound==0) continue;
 
-        for(int j=0;j<numCols;j++)
+        for(int j = 0; j < numCols; j++)
         {
-            int targetIndex= target+j*numRows;
+            size_t offset= j*numRows;
+            int targetIndex = target + offset;
 
             if(!ISNA(matrixIn[targetIndex])) continue;
 
-            double sum=0.0;
-            int validNeighbors=0;
+            int validNeighbors = 0;
 
-            for(int n=0;n<neighborsFound;n++) 
+            if(colType != NULL && colType[j] == 1)
             {
-                double neighborVal= matrixIn[neighbors[n].row_index+j*numRows];
-
-                if(!ISNA(neighborVal))
+                double* uniqueVal = malloc(neighborsFound*sizeof(double));
+                if(uniqueVal==NULL)
                 {
+                    free(neighbors);
+                    free(rowsToFIx);
+                    UNPROTECT(1);
+                    Rf_error("Allocation error");
+                }
+                int* counts = calloc(neighborsFound,sizeof(int));
+                if(counts==NULL)
+                {
+                    free(uniqueVal);
+                    free(neighbors);
+                    free(rowsToFIx);
+                    UNPROTECT(1);
+                    Rf_error("Allocation error");
+                }
+                int uniqueCount=0;
+                for(int n=0;n<neighborsFound;n++)
+                {
+                    double neighborVal= matrixIn[neighbors[n].row_index+offset];
+                    if(ISNA(neighborVal)) continue;
+
+                    validNeighbors++;
+                    int found=0;
+
+                    for(int u=0;u<uniqueCount;u++)
+                    {
+                        if(neighborVal==uniqueVal[u])
+                        {
+                            counts[u]++;
+                            found=1;
+                            break;
+                        }
+                    }
+                    if(!found)
+                    {
+                        uniqueVal[uniqueCount]=neighborVal;
+                        counts[uniqueCount]=1;
+                        uniqueCount++;
+                    }
+                }
+                if(validNeighbors>0)
+                {
+                    int maxVotes=-1;
+                    double winner=0.0;
+
+                    for(int u=0;u<uniqueCount;u++)
+                    {
+                        if(counts[u]>maxVotes)
+                        {
+                            maxVotes=counts[u];
+                            winner=uniqueVal[u];
+                        }
+                    }
+                    matrixOut[targetIndex]=winner;
+
+                }
+                free(uniqueVal);
+                free(counts);
+
+            }
+            else 
+            {
+                double sum=0.0;
+                for(int n=0;n<neighborsFound;n++) 
+                {
+                    double neighborVal= matrixIn[neighbors[n].row_index+offset];
+
+                    if(!ISNA(neighborVal))
+                    {
                     sum+=neighborVal;
                     validNeighbors++;
+                    }
+                }
+                if(validNeighbors>0)
+                {
+                    matrixOut[targetIndex]= sum/(double)validNeighbors;
                 }
             }
-            if(validNeighbors>0)
-            {
-                matrixOut[targetIndex]= sum/validNeighbors;
             }
+            free(neighbors);
         }
-        free(neighbors);
-
-    }
+    
+    
     free(rowsToFIx);
     UNPROTECT(1);
     return outputMatrix;
-    
 }
