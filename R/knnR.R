@@ -1,13 +1,18 @@
 
 
 kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan","gower"),
-                       threads=NULL,maxColNa=0.8,maxRowNa=0.5)
+                       mode=c("fast","precise"),threads=NULL,maxColNa=0.8,maxRowNa=0.5)
 {
   chosenMetric <- match.arg(metric)
   metricFlag <- switch (chosenMetric,
                         "euclidean" = 1L,
                         "manhattan" = 2L,
                         "gower"=3L
+  )
+  chosenMode <- match.arg(mode)
+  modeFlag <- switch (chosenMode,
+                      "fast" = 0L,
+                      "precise" = 1L
   )
   
   if(!is.data.frame(data) && !is.matrix(data))
@@ -18,7 +23,9 @@ kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan","gower"),
   
   if(is.null(threads) || is.na(threads))
   {
-    threads <- max(1L,as.integer(parallel::detectCores())-1L)
+    cores <- parallel::detectCores()
+    if (is.na(cores)) cores <- 1L
+    threads <- max(1L, as.integer(cores) - 1L)
   }
   else
   {
@@ -41,6 +48,10 @@ kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan","gower"),
   keepRows <- rowSums(is.na(dfOutput))/ncol(dfOutput) <= maxRowNa
   
   dfOutput <- dfOutput[keepRows, ,drop=FALSE]
+  
+  
+  shuffle_idx <- sample(nrow(dfOutput))
+  dfOutput <- dfOutput[shuffle_idx, , drop = FALSE]
   
   #Sprawdzamy pozostałą populacje
   
@@ -167,7 +178,7 @@ kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan","gower"),
       dfOutput[[col]]<- as.numeric(dfOutput[[col]])
     }
     imputedMatrixC <- .Call("knn_imputeC",as.matrix(dfOutput),
-                            as.integer(k),as.integer(metricFlag),as.integer(threads),colType,colRange)
+                            as.integer(k),as.integer(metricFlag),as.integer(modeFlag),as.integer(threads),colType,colRange)
     
     dfFinal <- dfOutput
     
@@ -188,12 +199,11 @@ kNN_impute <- function(data,k=5,metric=c("euclidean","manhattan","gower"),
       }
     }
   }
-  
+  dfFinal[shuffle_idx, ] <- dfFinal
   return(dfFinal)
 }
-  
-  
-  
-  
-  
-  
+
+
+
+
+

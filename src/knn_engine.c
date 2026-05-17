@@ -238,7 +238,7 @@ Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,
 }
 
 
-Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound,int* colType, double* colRange)
+Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound,int* colType, double* colRange,int requiredCol)
 {
     double* distances = calloc(numRows,sizeof(double));
     if(distances==NULL) return NULL;
@@ -252,7 +252,18 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
     {
         size_t offset=(size_t)i*numRows;
         double targetVal=matrix[targetRow+offset];
-        if(ISNA(targetVal)) continue;
+        if(ISNA(targetVal)) // kary dla wszystkich wierszy, kiedy target ma brak w kolumnie 
+        {
+            for(int j=0; j<targetRow; j++) {
+                distances[j] += 1.0;
+                validCols[j]++;
+            }
+            for(int j=targetRow+1; j<numRows; j++) {
+                distances[j] += 1.0;
+                validCols[j]++;
+            }
+            continue;
+        }
 
         if(colType[i])
         {
@@ -260,14 +271,24 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
             for(int j=0;j<targetRow;j++)
             {
                 double curr= matrix[j+offset];
-                if(ISNA(curr)) continue;
+                if(ISNA(curr))  // kary za braki danych
+                { 
+                    distances[j] += 1.0; 
+                    validCols[j]++; 
+                    continue; 
+                }
                 distances[j]+=(targetVal==curr)? 0.0:1.0;
                 validCols[j]++;
             }
             for(int j=targetRow+1;j<numRows;j++)
             {
                 double curr= matrix[j+offset];
-                if(ISNA(curr)) continue;
+                if(ISNA(curr)) 
+                { 
+                    distances[j] += 1.0; 
+                    validCols[j]++; 
+                    continue; 
+                }
                 distances[j]+=(targetVal==curr)? 0.0:1.0;
                 validCols[j]++;
             }
@@ -278,14 +299,25 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
             for(int j=0;j<targetRow;j++)
             {
                 double curr= matrix[j+offset];
-                if(ISNA(curr)) continue;
+                if(ISNA(curr)) 
+                { 
+                    distances[j] += 1.0; 
+                    validCols[j]++; 
+                    continue; 
+                }
                 distances[j]+=fabs(targetVal-curr)/range;
                 validCols[j]++;
             }
             for(int j=targetRow+1;j<numRows;j++)
             {
                 double curr= matrix[j+offset];
-                if(ISNA(curr)) continue;
+
+                if(ISNA(curr)) 
+                { 
+                    distances[j] += 1.0; 
+                    validCols[j]++; 
+                    continue; 
+                }
                 distances[j]+=fabs(targetVal-curr)/range;
                 validCols[j]++;
             }
@@ -298,6 +330,8 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
         double scalingFactor = (double) numCols / (double) validCols[i];
         distances[i]= distances[i]*scalingFactor;
     }
+    
+
     int Newk=MIN(k,numRows-1);
     Node* heap=malloc(Newk*sizeof(Node));
     if(heap==NULL)
@@ -310,7 +344,7 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
     int heapCount=0;
     while(rowIndex<numRows && heapCount<Newk)
     {
-        if(rowIndex==targetRow || validCols[rowIndex]==0)
+        if(rowIndex==targetRow || validCols[rowIndex]==0 || (requiredCol >=0 && ISNA(matrix[rowIndex+requiredCol*numRows])))
         {
             rowIndex++;
             continue;
@@ -335,7 +369,7 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
 
     for(int i=rowIndex;i<numRows;i++)
     {
-        if(i==targetRow || validCols[i]==0) continue;
+        if(i==targetRow || validCols[i]==0 || (requiredCol >=0 && ISNA(matrix[i+requiredCol*numRows]))) continue;
         if(distances[i]<heap[0].distance)
         {
             heap[0].distance=distances[i];
@@ -349,12 +383,14 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
 
 }
 
-SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads,SEXP rColType,SEXP rColRange)
+SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rThreads,SEXP rColType,SEXP rColRange)
 {
     if(!(Rf_isReal(rMatrix)) || !Rf_isMatrix(rMatrix)) Rf_error("Matrix is not numeric");
     if(!(Rf_isInteger(rK))) Rf_error("K is not numeric");
     if(Rf_asInteger(rK)<=0) Rf_error("K must be positive");
     if(!(Rf_isInteger(rThreads))) Rf_error("rThreads is not numeric");
+
+    
     if(Rf_asInteger(rThreads)<=0) Rf_error("rThreads must be positive");
 
     if(XLENGTH(rK)!=1) Rf_error("k must be scalar");
@@ -371,7 +407,9 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads,SEXP rCol
 
     int k= Rf_asInteger(rK);
     int metricFlag= Rf_asInteger(rMetricFlag);
+    int modeFlag = Rf_asInteger(rModeFlag);
     int numThreads= Rf_asInteger(rThreads);
+
 
 
     int* colType= (rColType != R_NilValue)? INTEGER(rColType) : NULL;
@@ -400,31 +438,60 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads,SEXP rCol
 
         Node* neighbors= NULL;
         int neighborsFound=0;
-        switch (metricFlag)
-        {
-        case 1:
-            neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
-            break;
-        
-        case 2:
-            neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
-            break;
-        case 3:
-            neighbors=gower_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,colType,colRange);
-            break;
-        default:
-        
-            break;
-        }
-        if(neighbors==NULL || neighborsFound==0) continue;
 
+        if(modeFlag==0)
+        {
+            switch (metricFlag)
+            {
+            case 1:
+                neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                break;
+            
+            case 2:
+                neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                break;
+            case 3:
+                neighbors=gower_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,colType,colRange,-1);
+                break;
+            default:
+            
+                break;
+
+        }
+        }
         for(int j = 0; j < numCols; j++)
         {
             size_t offset= j*numRows;
             int targetIndex = target + offset;
 
             if(!ISNA(matrixIn[targetIndex])) continue;
+            if(modeFlag==1) // szukamy sasiadow lokalnie
+            {
+                switch (metricFlag)
+                {
+                case 1:
+                    neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                    break;
+                
+                case 2:
+                    neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                    break;
+                case 3:
+                    neighbors=gower_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,colType,colRange,j);
+                    break;
+                default:
+                
+                    break;
 
+                }
+            }
+            if(neighbors==NULL || neighborsFound==0)
+            {
+                if(modeFlag==1 && neighbors != NULL) free(neighbors);
+                continue;
+            }
+
+            
             int validNeighbors = 0;
 
             if(colType != NULL && colType[j] == 1)
@@ -491,7 +558,7 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads,SEXP rCol
                 free(counts);
 
             }
-            else 
+            else  // ROZWAŻYĆ UŻYCIE MEDIANY !!!!
             {
                 double sum=0.0;
                 for(int n=0;n<neighborsFound;n++) 
@@ -509,8 +576,9 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rThreads,SEXP rCol
                     matrixOut[targetIndex]= sum/(double)validNeighbors;
                 }
             }
+            if(modeFlag==1 && neighbors != NULL) free(neighbors);
             }
-            free(neighbors);
+            if(modeFlag==0 && neighbors != NULL) free(neighbors);
         }
     
     
