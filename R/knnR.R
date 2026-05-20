@@ -1,7 +1,7 @@
 
 
 kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
-                       mode=c("fast","precise"),num_fun=c("median","mean"),threads=NULL,maxColNa=0.8,maxRowNa=0.5)
+                       mode=c("fast","precise"),num_fun=c("median","mean"),threads=NULL,maxColNa=0.8,maxRowNa=1.0)
 {
   chosenMetric <- match.arg(metric)
   metricFlag <- switch (chosenMetric,
@@ -185,6 +185,28 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
     imputedMatrixC <- .Call("knn_imputeC",as.matrix(dfOutput),
                             as.integer(k),as.integer(metricFlag),as.integer(modeFlag),
                             as.integer(funFlag),as.integer(threads),colType,colRange)
+    
+    
+    
+    #fallback
+    for(col in NumericColNames)
+    {
+      naIdx <- is.na(imputedMatrixC[,col])
+      if(any(naIdx))
+      {
+        imputedMatrixC[naIdx,col] <- median(imputedMatrixC[,col],na.rm=TRUE)
+      }
+    }
+    for(col in catColNames)
+    {
+      naIdx <- is.na(imputedMatrixC[,col])
+      if(any(naIdx))
+      {
+        imputedMatrixC[naIdx,col] <- as.numeric(names(which.max(table(imputedMatrixC[,col]))))
+      }
+    }
+    
+    
     
     dfFinal <- dfOutput
     
