@@ -46,6 +46,23 @@ void build_heap(Node* root, size_t n)
 
 
 
+
+void InsertionSort(double* medianArray,int* ValidNeighbors)
+{
+    for(int i=1; i <*ValidNeighbors; i++)
+    {
+        int j= i-1;
+        double v= medianArray[i];
+        while(j>=0 && medianArray[j]>v)
+        {
+            medianArray[j+1]=medianArray[j];
+            j--;
+        }
+        medianArray[j+1]=v;
+    }
+}
+
+
 //Różne metryki do obliczania sąsiadów 
 
 Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound)
@@ -383,7 +400,7 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
 
 }
 
-SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rThreads,SEXP rColType,SEXP rColRange)
+SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rFunFlag,SEXP rThreads,SEXP rColType,SEXP rColRange)
 {
     if(!(Rf_isReal(rMatrix)) || !Rf_isMatrix(rMatrix)) Rf_error("Matrix is not numeric");
     if(!(Rf_isInteger(rK))) Rf_error("K is not numeric");
@@ -408,6 +425,7 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rTh
     int k= Rf_asInteger(rK);
     int metricFlag= Rf_asInteger(rMetricFlag);
     int modeFlag = Rf_asInteger(rModeFlag);
+    int funFlag= Rf_asInteger(rFunFlag);
     int numThreads= Rf_asInteger(rThreads);
 
 
@@ -558,23 +576,75 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rTh
                 free(counts);
 
             }
-            else  // ROZWAŻYĆ UŻYCIE MEDIANY !!!!
+            else  
             {
-                double sum=0.0;
-                for(int n=0;n<neighborsFound;n++) 
-                {
-                    double neighborVal= matrixIn[neighbors[n].row_index+offset];
 
-                    if(!ISNA(neighborVal))
-                    {
-                    sum+=neighborVal;
-                    validNeighbors++;
-                    }
+                switch(funFlag){
+                    case 1:
+                        double* medianArray = malloc(neighborsFound*sizeof(double));
+                        if(medianArray == NULL)
+                        {
+                            free(neighbors);
+                            free(rowsToFIx);
+                            UNPROTECT(1);
+                            Rf_error("Allocation error");
+                        }
+        
+                        for(int n=0; n<neighborsFound;n++)
+                        {
+                            double tempVal = matrixIn[neighbors[n].row_index+offset];
+                            if(!ISNA(tempVal))
+                            {
+                                medianArray[validNeighbors]=tempVal;
+                                validNeighbors++;
+                            }
+                        }
+                        if(validNeighbors >0)
+                        {
+                            InsertionSort(medianArray,&validNeighbors);
+                        }
+                        else
+                        {
+                            matrixOut[targetIndex]=NA_REAL;
+                        }
+                        if(validNeighbors %2 !=0)
+                        {
+                            matrixOut[targetIndex]= medianArray[validNeighbors/2];
+                        }
+                        else 
+                        {
+                            matrixOut[targetIndex]=(medianArray[(validNeighbors-1) / 2]+medianArray[validNeighbors/2]) / 2.0;
+                        }
+                        free(medianArray);
+                        break;
+                    case 2:
+                        double sum=0.0;
+                        for(int n=0;n<neighborsFound;n++) 
+                        {
+                            double neighborVal= matrixIn[neighbors[n].row_index+offset];
+        
+                            if(!ISNA(neighborVal))
+                            {
+                            sum+=neighborVal;
+                            validNeighbors++;
+                            }
+                        }
+                        if(validNeighbors>0)
+                        {
+                            matrixOut[targetIndex]= sum/(double)validNeighbors;
+                        }
+                        else
+                        {
+                            matrixOut[targetIndex]=NA_REAL;
+                        }
+                        break;
+
+
                 }
-                if(validNeighbors>0)
-                {
-                    matrixOut[targetIndex]= sum/(double)validNeighbors;
-                }
+                
+
+                
+                    
             }
             if(modeFlag==1 && neighbors != NULL) free(neighbors);
             }
