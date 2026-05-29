@@ -1,5 +1,85 @@
 
 
+computeWeights <- function(dfOutput){
+  colN <-ncol(dfOutput)
+  rowN <- nrow(dfOutput)
+  
+  
+  corrMatrix <- matrix(data=rep(c(0),length.out=colN*colN),nrow=colN,ncol=colN)
+  
+  for(i in 1:colN)
+  {
+    for(j in 1:colN)
+    {
+      if(i == j)
+      {
+        next
+      }
+      
+      iCol <- dfOutput[,i]
+      jCol <- dfOutput[,j]
+      validIdx <- complete.cases(iCol,jCol)
+      iCol <- iCol[validIdx]
+      jCol<- jCol[validIdx]
+      
+      
+      if(length(iCol) <3 || length(unique(iCol)) <2 || length(unique(jCol)) <2 || length(jCol) <3) {
+        corrMatrix[i, j] <- 0.0
+        next
+      }
+      
+      iColType <- is.numeric(iCol)
+      jColType <- is.numeric(jCol)
+      
+      if(iColType && jColType)
+      {
+        corrMatrix[i,j]=abs( cor(iCol,jCol,method="spearman"))
+      }
+      else if(!iColType && !jColType)
+      {
+        t <- table(iCol,jCol)
+        r <- nrow(t)
+        k <-ncol(t)
+        n <- sum(t)
+        if(r<2 || k<2)
+        {
+          corrMatrix[i,j]=0.0
+          next
+        }
+        chi <- suppressWarnings(chisq.test(t,correct=FALSE)$statistic)
+        corrMatrix[i,j] <- as.numeric(sqrt(chi/(n*min(r-1,k-1))))
+      }
+      else
+      {
+        if(iColType)
+        {
+          numVar <-iCol
+          catVar <- jCol
+        }
+        else
+        {
+          numVar <- jCol
+          catVar <- iCol
+        }
+        corrMatrix[i,j] <- as.numeric(summary(lm(numVar~catVar))$r.squared)
+      }
+    }
+  }
+  for(i in 1:colN)
+  {
+    maxVal <- max(corrMatrix[i,])
+    if(maxVal>0)
+    {
+      corrMatrix[i,]<- corrMatrix[i,]/maxVal
+    }
+    
+  }
+  return(corrMatrix)
+}
+
+
+
+
 kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
                        mode=c("fast","precise"),num_fun=c("median","mean"),threads=NULL,maxColNa=0.8,maxRowNa=1.0)
 {
@@ -36,7 +116,7 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
   {
     threads <- as.integer(threads)
   }
-  if(maxColNa <=0 || maxColNa >=1 || maxRowNa <=0 || maxRowNa >=1 )
+  if(maxColNa <0 || maxColNa >1 || maxRowNa <0 || maxRowNa >1 )
   {
     stop("Invalid maxColNa or maxRowNa, both must be <0,1>")
   }
@@ -62,6 +142,12 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
   
   if(nrow(dfOutput)<k){
     stop("Chosen k is too high")
+  }
+  
+  weights <- NULL
+  if(modeFlag== 1L)
+  {
+    weights <- as.numeric(computeWeights(dfOutput))
   }
   
   # One hot encoding i skalowanie dla metryki euklidesowej i manhattan
@@ -182,9 +268,10 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
       levelsList[[col]] <- levels(dfOutput[[col]])
       dfOutput[[col]]<- as.numeric(dfOutput[[col]])
     }
+
     imputedMatrixC <- .Call("knn_imputeC",as.matrix(dfOutput),
                             as.integer(k),as.integer(metricFlag),as.integer(modeFlag),
-                            as.integer(funFlag),as.integer(threads),colType,colRange)
+                            as.integer(funFlag),as.integer(threads),colType,colRange,weights)
     
     
     
