@@ -145,7 +145,7 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
   }
   
   weights <- NULL
-  if(modeFlag== 1L)
+  if(modeFlag== 1L && metricFlag==3L)
   {
     weights <- as.numeric(computeWeights(dfOutput))
   }
@@ -198,7 +198,8 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
     
     # Wywołujemy funkcję z C
     imputedMatrixC <- .Call("knn_imputeC",as.matrix(matrixOutput),
-                            as.integer(k),as.integer(metricFlag),as.integer(threads))
+                            as.integer(k),as.integer(metricFlag),as.integer(modeFlag),as.integer(funFlag)
+                            ,as.integer(threads),NULL,NULL,NULL)
     
     
     
@@ -216,6 +217,8 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
         dfFinal[[col]][naIdx] <- decodedVal[naIdx]
       }
     }
+    
+    
     #Odkręcamy One Hot Encoding
     
     factorLikeColsNames <- names(dfOutput[!NumericCols])
@@ -243,6 +246,24 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
           dfFinal[[col]][naIdx] <- colLevels[chosenVal]
         }
         
+      }
+    }
+    #Fallback
+    
+    for(col in numericColsNames)
+    {
+      naIdx <- is.na(dfFinal[[col]])
+      if(any(naIdx))
+      {
+        dfFinal[[col]][naIdx] <- median(dfFinal[[col]],na.rm=TRUE)
+      }
+    }
+    for(col in factorLikeColsNames)
+    {
+      naIdx <- is.na(dfFinal[[col]])
+      if(any(naIdx))
+      {
+        dfFinal[[col]][naIdx] <- names(which.max(table(dfFinal[[col]])))
       }
     }
     

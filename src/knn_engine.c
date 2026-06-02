@@ -65,7 +65,7 @@ void InsertionSort(double* medianArray,int* ValidNeighbors)
 
 //Różne metryki do obliczania sąsiadów 
 
-Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound)
+Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound,int requiredCol)
 {
     double* distances = calloc(numRows,sizeof(double));
     if(distances==NULL) return NULL;
@@ -121,7 +121,7 @@ Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int
     int heapCount=0;
     while(rowIndex<numRows && heapCount<Newk)
     {
-        if(rowIndex==targetRow || validCols[rowIndex]==0)
+        if(rowIndex==targetRow || validCols[rowIndex]==0 || (requiredCol >=0 && ISNA(matrix[rowIndex+requiredCol*numRows])))
         {
             rowIndex++;
             continue;
@@ -146,7 +146,7 @@ Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int
 
     for(int i=rowIndex;i<numRows;i++)
     {
-        if(i==targetRow || validCols[i]==0) continue;
+        if(i==targetRow || validCols[i]==0 || (requiredCol >=0 && ISNA(matrix[i+requiredCol*numRows]))) continue;
         if(distances[i]<heap[0].distance)
         {
             heap[0].distance=distances[i];
@@ -159,7 +159,7 @@ Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int
     return heap;
 }
 
-Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound)
+Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound,int requiredCol)
 {
     double* distances = calloc(numRows,sizeof(double));
     if(distances==NULL) return NULL;
@@ -216,7 +216,7 @@ Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,
     int heapCount=0;
     while(rowIndex<numRows && heapCount<Newk)
     {
-        if(rowIndex==targetRow || validCols[rowIndex]==0)
+        if(rowIndex==targetRow || validCols[rowIndex]==0 || (requiredCol >=0 && ISNA(matrix[rowIndex+requiredCol*numRows])))
         {
             rowIndex++;
             continue;
@@ -241,7 +241,7 @@ Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,
 
     for(int i=rowIndex;i<numRows;i++)
     {
-        if(i==targetRow || validCols[i]==0) continue;
+        if(i==targetRow || validCols[i]==0 || (requiredCol >=0 && ISNA(matrix[i+requiredCol*numRows]))) continue;
         if(distances[i]<heap[0].distance)
         {
             heap[0].distance=distances[i];
@@ -471,11 +471,11 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rFu
             switch (metricFlag)
             {
             case 1:
-                neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,-1);
                 break;
             
             case 2:
-                neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,-1);
                 break;
             case 3:
                 neighbors=gower_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,colType,colRange,-1,weights);
@@ -497,11 +497,11 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rFu
                 switch (metricFlag)
                 {
                 case 1:
-                    neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                    neighbors=euclid_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,j);
                     break;
                 
                 case 2:
-                    neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound);
+                    neighbors=manhattan_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,j);
                     break;
                 case 3:
                     neighbors=gower_distance(matrixIn,target,numRows,numCols,k,&neighborsFound,colType,colRange,j,weights);
@@ -611,19 +611,20 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rFu
                         if(validNeighbors >0)
                         {
                             InsertionSort(medianArray,&validNeighbors);
+                            if(validNeighbors %2 !=0)
+                            {
+                                    matrixOut[targetIndex]= medianArray[validNeighbors/2];
+                            }
+                            else 
+                            {
+                                matrixOut[targetIndex]=(medianArray[(validNeighbors-1) / 2]+medianArray[validNeighbors/2]) / 2.0;
+                            }
                         }
                         else
                         {
                             matrixOut[targetIndex]=NA_REAL;
                         }
-                        if(validNeighbors %2 !=0)
-                        {
-                            matrixOut[targetIndex]= medianArray[validNeighbors/2];
-                        }
-                        else 
-                        {
-                            matrixOut[targetIndex]=(medianArray[(validNeighbors-1) / 2]+medianArray[validNeighbors/2]) / 2.0;
-                        }
+                        
                         free(medianArray);
                         break;
                     case 2:
