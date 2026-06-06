@@ -1,4 +1,19 @@
-
+#' @useDynLib AURAkNN, .registration = TRUE
+#' @importFrom stats chisq.test complete.cases cor lm median model.matrix na.omit sd
+"_PACKAGE"
+#' 
+#' @title
+#' Calculate corrlation-based weights
+#' 
+#' @description
+#' Computes a weights matrix for precise Gower distance.
+#' This is internal helper function and it is not intended to by called by the user.
+#' 
+#' @param dfOutput A data.frame containing the data to be evaluated
+#' 
+#' @return Returns a numeric normalized matrix representing weights.
+#' @keywords internal
+#' @noRd
 
 computeWeights <- function(dfOutput){
   colN <-ncol(dfOutput)
@@ -61,7 +76,7 @@ computeWeights <- function(dfOutput){
           numVar <- jCol
           catVar <- iCol
         }
-        corrMatrix[i,j] <- as.numeric(summary(lm(numVar~catVar))$r.squared)
+        corrMatrix[i,j] <- suppressWarnings(as.numeric(summary(lm(numVar~catVar))$r.squared))
       }
     }
   }
@@ -78,8 +93,56 @@ computeWeights <- function(dfOutput){
 }
 
 
-
-
+#' @title 
+#' Fast and Precise k-Nearest Neighbours Imputation for Mixed Data
+#' 
+#' @description 
+#' Imputes missing values (NAs) in a given dataset using kNN algorithm.
+#' The function supports Euclidean and Manhattan distances, designed for fast numeric imputation
+#' and a Gower distance metric for mixed data. The function operates in two modes: "Fast", which is meant to be used
+#' for rapid, memory-efficient imputation and "Precise mode", which maximizes the accuracy of the imputation. 
+#'  
+#' @param data A data.frame or matrix, which contains a missing values (NAs) to be imputed.
+#' @param k An integer specifying the number of neighbours. Default: 5.
+#' @param metric A string specifying the  distance metric to use.
+#' Allowed values are \code{"gower"} (default), \code{"euclidean"}, or \code{"manhattan"}.
+#' @param mode A string specifying the search algorithm.
+#' \code{"fast"} calculates global neighbors 
+#' \code{"precise"} recalculates neighbors for each missing cell. Uses weights in Gower distance metric. (default)
+#' @param num_fun A string specifying the function used to impute missing cells.
+#' Allowed values are \code{"median"} (default) or \code{"mean"}.
+#' @param threads An integer specifying the number of threads used by the function.
+#' Defaults to all available CPU cores minus one.
+#' @param maxColNa A numeric value between 0.0 and 1.0. Columns with fraction of missing values greater 
+#' than this number will be removed. Default value is 0.8. 
+#' @param maxRowNa A numeric value between 0.0 and 1.0. Rows with fraction of missing values greater 
+#' than this number will be removed. Default value is 1.0. 
+#' 
+#' @return A data.frame with missing values replaced by imputed estimates.
+#' 
+#' @examples
+#' \dontrun{
+#'  df <- data.frame(
+#'    PatientId = as.integer(1:8),
+#'    HeartRate = c(72, 85, 70, 88, NA, 60, 78, 86),
+#'    Cholesterol = c(190, 240, 185, 250, 200, NA, 195, 255),
+#'    RiskLevel = as.factor(c("Low", "High", "Low", "High", "Moderate", "Low", "Low", NA))
+#'  )
+#'  
+#'  #Fast imputation using Euclidean distance
+#'  kNNFast <- kNN_impute(df, k = 2, metric = "euclidean", mode = "fast")
+#'  # kNNFast$Cholesterol[6]
+#'  # [1] 192.5
+#'  
+#'  #Highly accurate imputation using Gower distance
+#'  kNNPrecise <- kNN_impute(df, k = 2, metric = "gower", mode = "precise")
+#'  # kNNPrecise$Risk_Level[8]
+#'  # [1] High
+#' 
+#' }
+#' 
+#' @export
+#' 
 kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
                        mode=c("fast","precise"),num_fun=c("median","mean"),threads=NULL,maxColNa=0.8,maxRowNa=1.0)
 {
@@ -114,11 +177,14 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
   }
   else
   {
+    if(!is.numeric(threads) || length(threads) != 1 || threads < 1) {
+      stop("Threads must be a single positive integer")
+    }
     threads <- as.integer(threads)
   }
   if(maxColNa <0 || maxColNa >1 || maxRowNa <0 || maxRowNa >1 )
   {
-    stop("Invalid maxColNa or maxRowNa, both must be <0,1>")
+    stop("Invalid maxColNa or maxRowNa, both must be [0,1]")
   }
   
   dfOutput <- as.data.frame(data)
