@@ -4,7 +4,9 @@
 #include <math.h>
 #include <R.h>
 #include <Rinternals.h>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 #define MIN(a,b) ((a) < (b)? (a):(b))
 typedef struct {
