@@ -108,7 +108,7 @@ computeWeights <- function(dfOutput){
 #' Allowed values are \code{"gower"} (default), \code{"euclidean"}, or \code{"manhattan"}.
 #' @param mode A string specifying the search algorithm.
 #' \code{"fast"} calculates global neighbors 
-#' \code{"precise"} recalculates neighbors for each missing cell. Uses weights in Gower distance metric. (default)
+#' \code{"precise"} (default) recalculates neighbors for each missing cell. Uses weights in Gower distance metric. 
 #' @param num_fun A string specifying the function used to impute missing cells.
 #' Allowed values are \code{"median"} (default) or \code{"mean"}.
 #' @param threads An integer specifying the number of threads used by the function.
@@ -136,7 +136,7 @@ computeWeights <- function(dfOutput){
 #'  
 #'  #Highly accurate imputation using Gower distance
 #'  kNNPrecise <- kNN_impute(df, k = 2, metric = "gower", mode = "precise")
-#'  # kNNPrecise$Risk_Level[8]
+#'  # kNNPrecise$RiskLevel[8]
 #'  # [1] High
 #' 
 #' }
@@ -144,7 +144,7 @@ computeWeights <- function(dfOutput){
 #' @export
 #' 
 kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
-                       mode=c("fast","precise"),num_fun=c("median","mean"),threads=NULL,maxColNa=0.8,maxRowNa=1.0)
+                       mode=c("precise","fast"),num_fun=c("median","mean"),threads=NULL,maxColNa=0.8,maxRowNa=1.0)
 {
   chosenMetric <- match.arg(metric)
   metricFlag <- switch (chosenMetric,

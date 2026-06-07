@@ -6,7 +6,7 @@ Authors@R:
 Author: Michał Kalwas [aut,cre]
 Maintainer: Michał Kalwas <michal.kalwas.stud@pw.edu.pl>
 Description: AURAkNN implements high-performance k-Nearest Neighbors (kNN) imputation algorithm. It features a highly optimized C backend with OpenMP multithreading, supporting Euclidean, Manhattan, and Gower distances, and operates in two distinct modes: fast and precise.
-License: AGPL
+License: AGPL-3 + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.1
