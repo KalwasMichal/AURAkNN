@@ -76,6 +76,35 @@ library(AURAkNN)
   NA treshold are dropped before imputation. A fallback ensures no
   missing values left in the imputeted data set.
 
+## Examples
+
+### Fast imputation using Euclidean distance
+
+``` r
+
+library(AURAkNN)
+
+df <- data.frame(
+  PatientId   = as.integer(1:8),
+  HeartRate   = c(72, 85, 70, 88, NA, 60, 78, 86),
+  Cholesterol = c(190, 240, 185, 250, 200, NA, 195, 255),
+  RiskLevel   = as.factor(c("Low", "High", "Low", "High", "Moderate", "Low", "Low", NA))
+)
+
+kNNFast <- kNN_impute(df, k = 2, metric = "euclidean", mode = "fast")
+kNNFast$Cholesterol[6]
+# [1] 192.5
+```
+
+### Highly accurate imputation using Gower distance
+
+``` r
+
+kNNPrecise <- kNN_impute(df, k = 2, metric = "gower", mode = "precise")
+kNNPrecise$RiskLevel[8]
+# [1] High
+```
+
 ## Results
 
 Performance was evaluated on the

@@ -110,6 +110,35 @@
 </ul>
 </div>
 <div class="section level2">
+<h2 id="examples">Examples<a class="anchor" aria-label="anchor" href="#examples"></a>
+</h2>
+<div class="section level3">
+<h3 id="fast-imputation-using-euclidean-distance">Fast imputation using Euclidean distance<a class="anchor" aria-label="anchor" href="#fast-imputation-using-euclidean-distance"></a>
+</h3>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://kalwasmichal.github.io/AURAkNN/">AURAkNN</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  PatientId   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">8</span><span class="op">)</span>,</span>
+<span>  HeartRate   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">72</span>, <span class="fl">85</span>, <span class="fl">70</span>, <span class="fl">88</span>, <span class="cn">NA</span>, <span class="fl">60</span>, <span class="fl">78</span>, <span class="fl">86</span><span class="op">)</span>,</span>
+<span>  Cholesterol <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">190</span>, <span class="fl">240</span>, <span class="fl">185</span>, <span class="fl">250</span>, <span class="fl">200</span>, <span class="cn">NA</span>, <span class="fl">195</span>, <span class="fl">255</span><span class="op">)</span>,</span>
+<span>  RiskLevel   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low"</span>, <span class="st">"High"</span>, <span class="st">"Low"</span>, <span class="st">"High"</span>, <span class="st">"Moderate"</span>, <span class="st">"Low"</span>, <span class="st">"Low"</span>, <span class="cn">NA</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">kNNFast</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/kNN_impute.html">kNN_impute</a></span><span class="op">(</span><span class="va">df</span>, k <span class="op">=</span> <span class="fl">2</span>, metric <span class="op">=</span> <span class="st">"euclidean"</span>, mode <span class="op">=</span> <span class="st">"fast"</span><span class="op">)</span></span>
+<span><span class="va">kNNFast</span><span class="op">$</span><span class="va">Cholesterol</span><span class="op">[</span><span class="fl">6</span><span class="op">]</span></span>
+<span><span class="co"># [1] 192.5</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="highly-accurate-imputation-using-gower-distance">Highly accurate imputation using Gower distance<a class="anchor" aria-label="anchor" href="#highly-accurate-imputation-using-gower-distance"></a>
+</h3>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">kNNPrecise</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/kNN_impute.html">kNN_impute</a></span><span class="op">(</span><span class="va">df</span>, k <span class="op">=</span> <span class="fl">2</span>, metric <span class="op">=</span> <span class="st">"gower"</span>, mode <span class="op">=</span> <span class="st">"precise"</span><span class="op">)</span></span>
+<span><span class="va">kNNPrecise</span><span class="op">$</span><span class="va">RiskLevel</span><span class="op">[</span><span class="fl">8</span><span class="op">]</span></span>
+<span><span class="co"># [1] High</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
 <h2 id="results">Results<a class="anchor" aria-label="anchor" href="#results"></a>
 </h2>
 <p>Performance was evaluated on the <a href="https://ggplot2.tidyverse.org/reference/diamonds.html" class="external-link"><code>ggplot2::diamonds</code></a> dataset — a random sample of <strong>10 000 diamonds</strong>. All 10 columns were used, with <strong>20% missing values</strong> injected randomly into each column. All methods were run with <code>k = 10</code>,Gower distance, 4 threads and seed=2115.</p>
