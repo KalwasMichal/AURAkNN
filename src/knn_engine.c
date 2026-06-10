@@ -65,7 +65,7 @@ void InsertionSort(double* medianArray,int* ValidNeighbors)
 }
 
 
-//Różne metryki do obliczania sąsiadów 
+
 
 Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int k, int* neigborsFound,int requiredCol)
 {
@@ -105,7 +105,7 @@ Node* euclid_distance(double* matrix,int targetRow, int numRows, int numCols,int
             }
         }
     }
-    for(int i=0;i<numRows;i++) // skalujemy dystanse
+    for(int i=0;i<numRows;i++) 
     {
         if(i==targetRow || validCols[i]==0) continue;
         double scalingFactor = (double) numCols / (double) validCols[i];
@@ -200,7 +200,7 @@ Node* manhattan_distance(double* matrix,int targetRow, int numRows, int numCols,
             }
         }
     }
-    for(int i=0;i<numRows;i++) // skalujemy dystanse
+    for(int i=0;i<numRows;i++) 
     {
         if(i==targetRow || validCols[i]==0) continue;
         double scalingFactor = (double) numCols / (double) validCols[i];
@@ -279,7 +279,7 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
 
         size_t offset=(size_t)i*numRows;
         double targetVal=matrix[targetRow+offset];
-        if(ISNA(targetVal)) // kary dla wszystkich wierszy, kiedy target ma brak w kolumnie 
+        if(ISNA(targetVal)) 
         {
             for(int j=0; j<targetRow; j++) {
                 distances[j] += currWeight;
@@ -298,7 +298,7 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
             for(int j=0;j<targetRow;j++)
             {
                 double curr= matrix[j+offset];
-                if(ISNA(curr))  // kary za braki danych
+                if(ISNA(curr))  
                 { 
                     distances[j] += currWeight; 
                     validColsWeight[j]+=currWeight; 
@@ -351,7 +351,7 @@ Node* gower_distance(double* matrix,int targetRow, int numRows, int numCols,int 
         }
 
     }
-    for(int i=0;i<numRows;i++) // skalujemy dystanse
+    for(int i=0;i<numRows;i++) 
     {
         if(i==targetRow || validColsWeight[i]==0.0) continue;
         distances[i]= distances[i]/validColsWeight[i];
@@ -443,7 +443,7 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rFu
 
     int* colType= (rColType != R_NilValue)? INTEGER(rColType) : NULL;
     double* colRange= (rColRange != R_NilValue)? REAL(rColRange) : NULL;
-    // tworzymy mape wierszy w których występują braki do uzupełnienia
+    
     int* rowsToFIx = calloc(numRows,sizeof(int));
     if(rowsToFIx==NULL)
     {
@@ -459,7 +459,7 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rFu
         }
     }
 
-    // Znajdujemy k sąsiadów dla wierszy które wymagają uzupełnienia 
+ 
     #pragma omp parallel for num_threads(numThreads)
     for(int target=0; target<numRows;target++)
     {
@@ -494,7 +494,7 @@ SEXP knn_imputeC(SEXP rMatrix, SEXP rK, SEXP rMetricFlag,SEXP rModeFlag,SEXP rFu
             int targetIndex = target + offset;
 
             if(!ISNA(matrixIn[targetIndex])) continue;
-            if(modeFlag==1) // szukamy sasiadow lokalnie
+            if(modeFlag==1)
             {
                 switch (metricFlag)
                 {

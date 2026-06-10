@@ -62,7 +62,8 @@ computeWeights <- function(dfOutput){
           next
         }
         chi <- suppressWarnings(chisq.test(t,correct=FALSE)$statistic)
-        corrMatrix[i,j] <- as.numeric(sqrt(chi/(n*min(r-1,k-1))))
+        val <- as.numeric(sqrt(chi/(n*min(r-1,k-1))))
+        corrMatrix[i,j] <- if(is.nan(val) || is.infinite(val)) 0.0 else val
       }
       else
       {
@@ -76,19 +77,21 @@ computeWeights <- function(dfOutput){
           numVar <- jCol
           catVar <- iCol
         }
-        corrMatrix[i,j] <- suppressWarnings(as.numeric(summary(lm(numVar~catVar))$r.squared))
+          val <- suppressWarnings(as.numeric(summary(lm(numVar~catVar))$r.squared))
+          corrMatrix[i,j] <- if(is.na(val) || is.nan(val)) 0.0 else val
       }
     }
   }
   for(i in 1:colN)
   {
-    maxVal <- max(corrMatrix[i,])
-    if(maxVal>0)
+    maxVal <- max(corrMatrix[i,], na.rm = TRUE)
+    if(!is.na(maxVal) && maxVal > 0)
     {
       corrMatrix[i,]<- corrMatrix[i,]/maxVal
     }
     
   }
+  corrMatrix[corrMatrix <0.1] <-0 
   return(corrMatrix)
 }
 
@@ -189,12 +192,12 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
   
   dfOutput <- as.data.frame(data)
   
-  # Sprawdzamy liczbę Na w kolumnach i odsiewamy je
+
   DeletedCols <-names(dfOutput) [colSums(is.na(dfOutput)) / nrow(dfOutput) > maxColNa]
   
   dfOutput <- dfOutput[,!names(dfOutput) %in% DeletedCols,drop=FALSE]
   
-  # Sprawdzamy liczbę Na w wierszach i odsiewamy je
+
   
   keepRows <- rowSums(is.na(dfOutput))/ncol(dfOutput) <= maxRowNa
   
@@ -204,7 +207,7 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
   shuffle_idx <- sample(nrow(dfOutput))
   dfOutput <- dfOutput[shuffle_idx, , drop = FALSE]
   
-  #Sprawdzamy pozostałą populacje
+ 
   
   if(nrow(dfOutput)<k){
     stop("Chosen k is too high")
@@ -216,14 +219,14 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
     weights <- as.numeric(computeWeights(dfOutput))
   }
   
-  # One hot encoding i skalowanie dla metryki euklidesowej i manhattan
+ 
   
   if(metricFlag %in% c(1L,2L))
   {
     
     NumericCols <- sapply(dfOutput,is.numeric)
     
-    # Pomijamy kolumny typu factor etc, które mają tylko jedną możliwą wartość
+ 
     numberOfuniqueVal <- sapply(dfOutput[!NumericCols],function(x){length(unique(na.omit(x)))})
     
     factorLikeColToDelete <- names(numberOfuniqueVal[numberOfuniqueVal==1])
@@ -234,14 +237,14 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
     }
     
     
-    #Robimy One hot encoding
+  
     options(na.action = "na.pass")
     
     matrixOutput <- model.matrix(~. -1,data=dfOutput)   
     
     options(na.action = "na.omit")
     
-    # Skalujemy wartości numeryczne
+
     numericColsNames <- names(dfOutput[NumericCols])
     
     scale_mean <- numeric(ncol(matrixOutput))
@@ -262,14 +265,14 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
       matrixOutput[,col] <- (matrixOutput[,col]-colMean)/colSd
     }
     
-    # Wywołujemy funkcję z C
+    
     imputedMatrixC <- .Call("knn_imputeC",as.matrix(matrixOutput),
                             as.integer(k),as.integer(metricFlag),as.integer(modeFlag),as.integer(funFlag)
                             ,as.integer(threads),NULL,NULL,NULL)
     
     
     
-    # Dekodujemy macierz
+
     dfFinal <- dfOutput
     
     for(col in numericColsNames)
@@ -285,7 +288,7 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
     }
     
     
-    #Odkręcamy One Hot Encoding
+
     
     factorLikeColsNames <- names(dfOutput[!NumericCols])
     
@@ -314,7 +317,7 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
         
       }
     }
-    #Fallback
+   
     
     for(col in numericColsNames)
     {
@@ -362,7 +365,7 @@ kNN_impute <- function(data,k=5,metric=c("gower","euclidean","manhattan"),
     
     
     
-    #fallback
+
     for(col in NumericColNames)
     {
       naIdx <- is.na(imputedMatrixC[,col])
